@@ -1,4 +1,4 @@
-from utils import process_video
+from utils import process_video, process_images_as_video
 from tracking import ObjectTracker, KeypointsTracker
 from club_assignment import ClubAssigner, Club
 from ball_to_player_assignment import BallToPlayerAssigner
@@ -11,7 +11,6 @@ def main():
     Main function to demonstrate how to use the football analysis project.
     This script will walk you through loading models, assigning clubs, tracking objects and players, and processing the video.
     """
-
     # 1. Load the object detection model
     # Adjust the 'conf' value as per your requirements.
     obj_tracker = ObjectTracker(
@@ -78,11 +77,21 @@ def main():
     # 7. Process the video
     # Specify the input video path and the output video path. 
     # The batch_size determines how many frames are processed in one go.
-    process_video(processor,                                # Created FootballVideoProcessor object
-                  video_source='input_videos/video2.mp4', # Video source (in this case video file path)
-                  output_video='output_videos/testx.mp4',    # Output video path (Optional)
-                  batch_size=10                             # Number of frames to process at once
-                  )
+    # process_video(processor,                                # Created FootballVideoProcessor object
+    #               video_source='input_videos/video.mp4', # Video source (in this case video file path)
+    #               output_video='output_videos/result.mp4',    # Output video path (Optional)
+    #               batch_size=10                             # Number of frames to process at once
+    #               )
+
+    # 7.1 Process images as video
+    # Processing multuple image sequence as video
+    # Ensure the image file name is alphabetically ordered according to the video sequence
+    process_images_as_video(processor,
+                            image_dir='input_videos/images',
+                            output_video='output_videos/result.mp4',
+                            batch_size=10,
+                            fps=25,
+                            )
 
 
 if __name__ == '__main__':

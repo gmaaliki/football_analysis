@@ -64,6 +64,7 @@ def process_video(processor = None, video_source: str = 0, output_video: Optiona
         return
 
     fps = int(cap.get(cv2.CAP_PROP_FPS))
+    print(f"Video FPS: {fps}")
     frames_to_skip = int(skip_seconds * fps)
 
     # Skip the first 'frames_to_skip' frames
@@ -162,7 +163,8 @@ def process_video(processor = None, video_source: str = 0, output_video: Optiona
                 frame_filename = os.path.join(temp_dir, f"frame_{frame_count:06d}.jpg")
                 cv2.imwrite(frame_filename, processed_frame)
                 
-                cv2.imshow('Football Analysis', processed_frame)
+                # Turning off the live display for now
+                # cv2.imshow('Football Analysis', processed_frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     print("'q' pressed, initiating shutdown")
@@ -222,6 +224,200 @@ def process_video(processor = None, video_source: str = 0, output_video: Optiona
 
         finally:
             cap.release()
+            cv2.destroyAllWindows()
+
+    print("Video processing completed. Program will now exit.")
+    os._exit(0)  # Force exit the program
+
+def process_images_as_video(processor = None, image_dir: str = 0, output_video: Optional[str] = "output.mp4", 
+                  batch_size: int = 30, skip_seconds: int = 0, fps: int = 30) -> None:
+    """
+    Process a video file or stream, capturing, processing, and displaying frames.
+
+    Args:
+        processor (AbstractVideoProcessor): Object responsible for processing frames.
+        video_source (str, optional): Video source (default is "0" for webcam).
+        output_video (Optional[str], optional): Path to save the output video or None to skip saving.
+        batch_size (int, optional): Number of frames to process at once.
+        skip_seconds (int, optional): Seconds to skip at the beginning of the video.
+    """
+    from annotation import AbstractVideoProcessor  # Lazy import
+
+    if processor is not None and not isinstance(processor, AbstractVideoProcessor):
+        raise ValueError("The processor must be an instance of AbstractVideoProcessor.")
+    
+    if not image_dir or not os.path.exists(image_dir):
+        print("Error: Image directory is not valid")
+        return
+
+    if len(os.listdir(image_dir)) == 0:
+        print("Error: No images present")
+        return
+
+    images = [os.path.join(image_dir, frame) for frame in os.listdir(image_dir)]
+    total_frame = len(images)
+
+    print(f"Video FPS: {fps}")
+    print(f"Total frame count: {total_frame}")
+    frames_to_skip = int(skip_seconds * fps)
+
+    # Skip the first 'frames_to_skip' frames
+    images = images[frames_to_skip:]
+
+    frame_queue = queue.Queue(maxsize=100)
+    processed_queue = queue.Queue(maxsize=100)
+    stop_event = threading.Event()
+    
+    def signal_handler(signum, frame):
+        """Signal handler to initiate shutdown on interrupt."""
+
+        print("Interrupt received, initiating shutdown...")
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    def frame_capture_thread() -> None:
+        """Thread to capture frames from the video source."""
+
+        print("Starting frame capture")
+        frame_count = frames_to_skip  # Start counting frames from here
+        try:
+            while frame_count <= total_frame and not stop_event.is_set():
+                image_name = images[frame_count]
+                frame = cv2.imread(image_name)
+                resized_frame = cv2.resize(frame, (1920, 1080))
+
+                frame_queue.put((frame_count, resized_frame))
+                frame_count += 1
+        except Exception as e:
+            print(f"Error in frame capture: {e}")
+        finally:
+            frame_queue.put(None)  # Signal end of capture
+        print("Frame capture complete")
+
+    def frame_processing_thread() -> None:
+        """Thread to process frames from the frame queue."""
+        
+        print("Starting frame processing")
+        frame_batch = []
+        while not stop_event.is_set():
+            try:
+                item = frame_queue.get(timeout=1)
+                if item is None:
+                    print("No more frames to process")
+                    if frame_batch:
+                        process_batch(frame_batch)
+                    break
+                frame_count, frame = item
+                frame_batch.append((frame_count, frame))
+
+                if len(frame_batch) == batch_size:
+                    process_batch(frame_batch)
+                    frame_batch = []
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error in frame processing: {e}")
+
+        processed_queue.put(None)  # Signal end of processing
+        print("Frame processing complete")
+
+    def process_batch(batch: List[Tuple[int, np.ndarray]]) -> None:
+        """
+        Process a batch of frames and put results in the processed queue.
+
+        Args:
+            batch (List[Tuple[int, np.ndarray]]): List of tuples containing frame count and frame data.
+        """
+        frames = [frame for _, frame in batch]
+        try:
+            processed_batch = processor.process(frames, fps)
+            for (frame_count, _), processed_frame in zip(batch, processed_batch):
+                processed_queue.put((frame_count, processed_frame))
+        except Exception as e:
+            print(f"Error processing batch: {e}")
+            traceback.print_exc()
+
+    def frame_display_thread(temp_dir: str) -> None:
+        """Thread to display processed frames."""
+
+        print("Starting frame display")
+        while not stop_event.is_set():
+            try:
+                item = processed_queue.get(timeout=1)
+                if item is None:
+                    print("No more frames to display")
+                    break
+                frame_count, processed_frame = item
+
+                frame_filename = os.path.join(temp_dir, f"frame_{frame_count:06d}.jpg")
+                cv2.imwrite(frame_filename, processed_frame)
+                
+                # Turning off the live display for now
+                # cv2.imshow('Football Analysis', processed_frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    print("'q' pressed, initiating shutdown")
+                    stop_event.set()
+                    break
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error displaying frame: {e}")
+
+        cv2.destroyAllWindows()
+        print("Frame display complete")
+    
+
+    # Debug starts here
+
+    # Debug ends here
+
+    width = 1920
+    height = 1080
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            threads = [
+                threading.Thread(target=frame_capture_thread, name="Capture"),
+                threading.Thread(target=frame_processing_thread, name="Processing"),
+                threading.Thread(target=frame_display_thread, args=(temp_dir,), name="Display")
+            ]
+
+            for thread in threads:
+                thread.start()
+
+            # Wait for user to press 'q'
+            while any(thread.is_alive() for thread in threads):
+                if stop_event.is_set():
+                    print("Stopping threads...")
+                    break
+                time.sleep(0.1)
+
+            stop_event.set()  # Ensure all threads know to stop
+
+            for thread in threads:
+                thread.join(timeout=10)  # Give each thread 10 seconds to join
+                if thread.is_alive():
+                    print(f"Thread {thread.name} did not terminate gracefully")
+
+            # Ensure all queues are empty
+            while not frame_queue.empty():
+                frame_queue.get()
+            while not processed_queue.empty():
+                processed_queue.get()
+
+            print("All threads have completed.")
+            # Only convert to video if output_video is not None
+            if output_video is not None:
+                print("Converting frames to video...")
+                _convert_frames_to_video(temp_dir, output_video, fps, (width, height))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            traceback.print_exc()
+
+        finally:
             cv2.destroyAllWindows()
 
     print("Video processing completed. Program will now exit.")
