@@ -369,10 +369,6 @@ def process_images_as_video(processor = None, image_dir: str = 0, output_video: 
         print("Frame display complete")
     
 
-    # Debug starts here
-
-    # Debug ends here
-
     width = 1920
     height = 1080
 
@@ -420,5 +416,6 @@ def process_images_as_video(processor = None, image_dir: str = 0, output_video: 
         finally:
             cv2.destroyAllWindows()
 
+    processor.export()
     print("Video processing completed. Program will now exit.")
     os._exit(0)  # Force exit the program

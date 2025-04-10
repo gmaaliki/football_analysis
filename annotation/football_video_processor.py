@@ -164,6 +164,8 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
 
         return combined_frame
     
+    def export(self):
+        self.obj_tracker.export_to_mot()
 
     def _combine_frame_projection(self, frame: np.ndarray, projection_frame: np.ndarray) -> np.ndarray:
         """

@@ -22,7 +22,8 @@ class ObjectTracker(AbstractTracker):
         self.classes = ['ball', 'goalkeeper', 'player', 'referee']
         self.tracker = sv.ByteTrack(lost_track_buffer=5)  # Initialize ByteTracker
         self.tracker.reset()
-        self.all_tracks = {class_name: {} for class_name in self.classes}  # Initialize tracks
+        # self.all_tracks = {class_name: {} for class_name in self.classes}  # Initialize tracks
+        self.all_tracks = {}
         self.cur_frame = 0  # Frame counter initialization
         self.original_size = (1920, 1080)  # Original frame size (1920x1080)
         self.scale_x = self.original_size[0] / 1280
@@ -72,6 +73,29 @@ class ObjectTracker(AbstractTracker):
 
         # Return only the last frame's data
         return self.current_frame_tracks
+    
+    def export_to_mot(self, save_path: str = "mot_results.txt"):
+        """
+        Export tracking results to MOT Challenge format.
+        
+        Args:
+            save_path (str): Path to save the MOT format results file.
+        """
+        with open(save_path, 'w') as f:
+            for frame_idx, frame_data in self.all_tracks.items():
+                frame_num = frame_idx + 1  # MOT format is 1-indexed
+
+                for class_name, tracks in frame_data.items():
+                    class_id = self.classes.index(class_name)
+
+                    for track_id, info in tracks.items():
+                        x1, y1, x2, y2 = info['bbox']
+                        width = x2 - x1
+                        height = y2 - y1
+
+                        line = f"{frame_num},{track_id},{x1:.2f},{y1:.2f},{width:.2f},{height:.2f},1,{class_id},-1\n"
+                        f.write(line)
+
     
     def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
         """
