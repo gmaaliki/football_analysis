@@ -14,7 +14,8 @@ def main():
     # 1. Load the object detection model
     # Adjust the 'conf' value as per your requirements.
     obj_tracker = ObjectTracker(
-        model_path='models/weights/object-detection.pt',    # Object Detection Model Weights Path
+        player_model_path='models/weights/player-model.pt',    # Object Detection Model Path for players
+        ball_model_path='models/weights/ball-model.pt',     # Object Detection Model Path for ball
         conf=.5,                                            # Object Detection confidence threshold
         ball_conf=.05                                        # Ball Detection confidence threshold
     )

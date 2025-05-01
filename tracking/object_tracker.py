@@ -4,11 +4,15 @@ import supervision as sv
 import cv2
 from typing import List
 import numpy as np
-from ultralytics.engine.results import Results
+from ultralytics.engine.results import Results, Boxes
+from ultralytics import YOLO
+import torch
+import copy
 
-class ObjectTracker(AbstractTracker):
+# No longer inheriting AbstractTracker
+class ObjectTracker():
 
-    def __init__(self, model_path: str, conf: float = 0.5, ball_conf: float = 0.3) -> None:
+    def __init__(self, player_model_path: str, ball_model_path: str, conf: float = 0.5, ball_conf: float = 0.3) -> None:
         """
         Initialize ObjectTracker with detection and tracking.
 
@@ -16,11 +20,20 @@ class ObjectTracker(AbstractTracker):
             model_path (str): Model Path.
             conf (float): Confidence threshold for detection.
         """
-        super().__init__(model_path, conf)  # Call the Tracker base class constructor
 
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.player_model = YOLO(player_model_path)
+        self.player_model.to(device)
+        self.ball_model = YOLO(ball_model_path)
+        self.ball_model.to(device)
+
+        self.conf = conf
         self.ball_conf = ball_conf
         self.classes = ['ball', 'goalkeeper', 'player', 'referee']
-        self.tracker = sv.ByteTrack(lost_track_buffer=5)  # Initialize ByteTracker
+        self.tracker = sv.ByteTrack(
+            lost_track_buffer=30,
+            frame_rate=25,
+        )  # Initialize ByteTracker
         self.tracker.reset()
         # self.all_tracks = {class_name: {} for class_name in self.classes}  # Initialize tracks
         self.all_tracks = {}
@@ -43,7 +56,63 @@ class ObjectTracker(AbstractTracker):
         resized_frames = [self._preprocess_frame(frame) for frame in frames]
 
         # Use YOLOv8's predict method to handle batch inference
-        detections = self.model.predict(resized_frames, conf=self.conf)
+        player_detections = self.player_model.predict(resized_frames, conf=self.conf)
+        ball_detections = self.ball_model.predict(resized_frames, conf=self.ball_conf)
+
+        # TODO: Gabungin model 3+1 nya, append detections.boxesnya, classnya disesuaikan sesuai dengan model 4, tambahin waktu di speednya, adjust names nya
+        detections = copy.deepcopy(player_detections)
+        names = {
+            0: 'ball',
+            1: 'goalkeeper',
+            2: 'player',
+            3: 'referee',
+        }
+
+        for i in range(len(detections)):
+            detections[i].names = names # Adjust detections results to 4 class
+
+            player_boxes = player_detections[i].boxes
+            ball_boxes = ball_detections[i].boxes
+            player_data = player_boxes.data.clone()
+            ball_data = ball_boxes.data.clone()
+
+            player_xyxy = player_data[:, 0:4]
+            player_conf = player_data[:, 4]
+            player_cls = player_data[:, 5]
+            class_mapping = torch.tensor([1, 2, 3], device=player_cls.device)
+            player_cls = class_mapping[player_cls.long()] # Remapped player class to adjust to original classes
+            player_new_boxes = torch.cat([
+                player_xyxy, 
+                player_conf.unsqueeze(1), 
+                player_cls.unsqueeze(1)
+            ], dim=1)
+
+            ball_xyxy = ball_data[:, 0:4]
+            ball_conf = ball_data[:, 4]
+            ball_cls = ball_data[:, 5] # Keep class becausae it's already 0 (same as original classes)
+            ball_new_boxes = torch.cat([
+                ball_xyxy, 
+                ball_conf.unsqueeze(1), 
+                ball_cls.unsqueeze(1)
+            ], dim=1)
+
+
+            new_data = torch.cat([player_new_boxes, ball_new_boxes], dim=0)
+            sorted_indices = new_data[:, 4].argsort(descending=True) # sort detections based on it's confidence score
+            new_data = new_data[sorted_indices]
+            orig_shape = detections[i].orig_shape
+            new_boxes = Boxes(new_data, orig_shape=orig_shape)
+
+            detections[i].boxes = new_boxes
+
+            # Add inference time for both models
+            combined_speed = {}
+            for key in detections[i].speed:
+                combined_speed[key] = (
+                    player_detections[i].speed[key] +
+                    ball_detections[i].speed[key]
+                )
+            detections[i].speed = combined_speed
 
         return detections  # Batch of detections
 
@@ -90,10 +159,11 @@ class ObjectTracker(AbstractTracker):
 
                     for track_id, info in tracks.items():
                         x1, y1, x2, y2 = info['bbox']
+                        conf = info['conf']
                         width = x2 - x1
                         height = y2 - y1
 
-                        line = f"{frame_num},{track_id},{x1:.2f},{y1:.2f},{width:.2f},{height:.2f},1,{class_id},-1\n"
+                        line = f"{frame_num},{track_id},{x1:.2f},{y1:.2f},{width:.2f},{height:.2f},{conf:.2f},{class_id},-1,-1\n"
                         f.write(line)
 
     
@@ -153,6 +223,6 @@ class ObjectTracker(AbstractTracker):
 
             # Add track_id entry if not already present
             if track_id not in result[class_name]:
-                result[class_name][track_id] = {'bbox': scaled_bbox}
+                result[class_name][track_id] = {'bbox': scaled_bbox, 'conf': conf}
 
         return result
