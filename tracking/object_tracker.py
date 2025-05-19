@@ -95,6 +95,12 @@ class ObjectTracker():
                 ball_conf.unsqueeze(1), 
                 ball_cls.unsqueeze(1)
             ], dim=1)
+            # # Only take 1 ball detection that is the highest
+            # if ball_new_boxes.shape[0] > 0:
+            #     sorted_ball_boxes = ball_new_boxes[ball_new_boxes[:, 4].argsort(descending=True)]
+            #     top_ball_box = sorted_ball_boxes[0].unsqueeze(0)  # shape [1, 6]
+            # else:
+            #     top_ball_box = torch.empty((0, 6), device=ball_new_boxes.device)
 
 
             new_data = torch.cat([player_new_boxes, ball_new_boxes], dim=0)

@@ -14,6 +14,7 @@ from utils import rgb_bgr_converter
 
 import cv2
 import numpy as np
+import os
 from typing import List, Dict, Optional, Tuple
 
 class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
@@ -48,7 +49,7 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         self.club_assigner = club_assigner
         self.ball_to_player_assigner = ball_to_player_assigner
         self.projection_annotator = ProjectionAnnotator()
-        self.obj_mapper = ObjectPositionMapper(top_down_keypoints)
+        self.obj_mapper = ObjectPositionMapper(top_down_keypoints, alpha = 0.9)
         self.draw_frame_num = draw_frame_num
         if self.draw_frame_num:
             self.frame_num_annotator = FrameNumberAnnotator() 
@@ -56,7 +57,7 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         if save_tracks_dir:
             self.save_tracks_dir = save_tracks_dir
             self.writer = TracksJsonWriter(save_tracks_dir)
-        
+       
         field_image = cv2.imread(field_img_path)
         # Convert the field image to grayscale (black and white)
         field_image = cv2.cvtColor(field_image, cv2.COLOR_BGR2GRAY)
@@ -127,6 +128,7 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
             # Annotate the current frame with the tracking information
             annotated_frame = self.annotate(frame, all_tracks)
 
+
             # Append the annotated frame to the processed frames list
             processed_frames.append(annotated_frame)
 
@@ -159,13 +161,29 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         # Combine the frame and projection into a single canvas
         combined_frame = self._combine_frame_projection(frame, projection_frame)
 
-        # Annotate possession on the combined frame
-        combined_frame = self._annotate_possession(combined_frame)
+        try:
+            # Annotate possession on the combined frame
+            combined_frame = self._annotate_possession(combined_frame)
+        except Exception as e:
+            print(f"Warning: Failed to annotate possession. Error: {e}")
 
         return combined_frame
     
-    def export(self):
-        self.obj_tracker.export_to_mot()
+    def export(self, name: str = ""):
+        os.makedirs('./output_videos/mot_results', exist_ok=True)
+        self.obj_tracker.export_to_mot(save_path = f"./output_videos/mot_results/{name}.txt")
+
+        all_speed_history, all_distance_history = self.speed_estimator.extract_players_data()
+
+        speed_history_path = os.path.join(self.save_tracks_dir, 'speed.txt')
+        with open(speed_history_path, 'w') as f:
+            for key, value in sorted(all_speed_history.items()):
+                f.write(f'Track {key}: {value}\n')
+
+        distance_history_path = os.path.join(self.save_tracks_dir, 'distance.txt')
+        with open(distance_history_path, 'w') as f:
+            for key, value in sorted(all_distance_history.items()):
+                f.write(f'Track {key}: {value}\n')
 
     def _combine_frame_projection(self, frame: np.ndarray, projection_frame: np.ndarray) -> np.ndarray:
         """
@@ -332,7 +350,3 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         """
         self.writer.write(self.writer.get_object_tracks_path(), all_tracks['object'])
         self.writer.write(self.writer.get_keypoints_tracks_path(), all_tracks['keypoints'])
-
-    
-
-    

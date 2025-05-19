@@ -9,7 +9,7 @@ import numpy as np
 class KeypointsTracker(AbstractTracker):
     """Detection and Tracking of football field keypoints"""
 
-    def __init__(self, model_path: str, conf: float = 0.1, kp_conf: float = 0.7) -> None:
+    def __init__(self, model_path: str, conf: float = 0.1, kp_conf: float = 0.7, det_size: int = 1280) -> None:
         """
         Initialize KeypointsTracker for tracking keypoints.
         
@@ -23,8 +23,9 @@ class KeypointsTracker(AbstractTracker):
         self.tracks = []  # Initialize tracks list
         self.cur_frame = 0  # Frame counter initialization
         self.original_size = (1920, 1080)  # Original resolution (1920x1080)
-        self.scale_x = self.original_size[0] / 1280
-        self.scale_y = self.original_size[1] / 1280
+        self.det_size = det_size
+        self.scale_x = self.original_size[0] / self.det_size
+        self.scale_y = self.original_size[1] / self.det_size
 
     def detect(self, frames: List[np.ndarray]) -> List[Results]:
         """
@@ -68,8 +69,8 @@ class KeypointsTracker(AbstractTracker):
             i: (coords[0] * self.scale_x, coords[1] * self.scale_y)  # i is the key (index), (x, y) are the values
             for i, (coords, conf) in enumerate(zip(xy, confidence))
             if conf > self.kp_conf
-            and 0 <= coords[0] <= 1280  # Check if x is within bounds
-            and 0 <= coords[1] <= 1280  # Check if y is within bounds
+            and 0 <= coords[0] <= self.det_size  # Check if x is within bounds
+            and 0 <= coords[1] <= self.det_size  # Check if y is within bounds
         }
 
         self.tracks.append(detection)
@@ -79,7 +80,7 @@ class KeypointsTracker(AbstractTracker):
 
     def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
         """
-        Preprocess the frame by adjusting contrast and resizing to 1280x1280.
+        Preprocess the frame by adjusting contrast and resizing to original detection size.
         
         Args:
             frame (np.ndarray): The input image frame.
@@ -88,10 +89,11 @@ class KeypointsTracker(AbstractTracker):
             np.ndarray: The resized frame with adjusted contrast.
         """
         # Adjust contrast
-        frame = self._adjust_contrast(frame)
+        # NOTE: contrast will NOT work on the current model
+        # frame = self._adjust_contrast(frame)
         
-        # Resize frame to 1280x1280
-        resized_frame = cv2.resize(frame, (1280, 1280))
+        # Resize frame to original detection size
+        resized_frame = cv2.resize(frame, (self.det_size, self.det_size))
 
         return resized_frame
     

@@ -49,6 +49,7 @@ class ObjectPositionMapper(AbstractMapper):
         H = get_homography(keypoints, self.top_down_keypoints)
         smoothed_H = self.homography_smoother.smooth(H)  # Apply smoothing to the homography matrix
 
+        # TODO: cek track_info['projection']
         for _, object_info in object_data.items():
             for _, track_info in object_info.items():
                 bbox = track_info['bbox']

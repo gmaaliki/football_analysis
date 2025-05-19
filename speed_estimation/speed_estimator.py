@@ -24,6 +24,11 @@ class SpeedEstimator:
         self.real_field_width = real_field_width    # in meters
         self.previous_positions: Dict[Any, Tuple[Tuple[float, float], int]] = {}
         self.speed_history: Dict[Any, deque] = {}
+        
+        # Recap all speed and distance for each players
+        self.all_speed_history: Dict[Any, deque] = {}
+        self.all_distance_history: Dict[Any, deque] = {}
+
         self.smoothing_window = smoothing_window
         
         # Calculate scaling factors
@@ -70,10 +75,20 @@ class SpeedEstimator:
                         
                         # Add speed to track
                         tracks[track_type][player_id]['speed'] = smoothed_speed
+                        
+                        # For recapping all the players results
+                        self.all_speed_history[player_id].append(smoothed_speed)
+                        self.all_distance_history[player_id].append(distance)
                     else:
                         # If it's the first time we're seeing this player, set speed to 0
                         tracks[track_type][player_id]['speed'] = 0.0
                         self.speed_history[player_id] = deque([0.0] * self.smoothing_window, maxlen=self.smoothing_window)
+
+                        # For recapping all the players results
+                        self.all_speed_history[player_id] = []
+                        self.all_speed_history[player_id].append(0.0)
+                        self.all_distance_history[player_id] = []
+                        self.all_distance_history[player_id].append(0.0)
                     
                     # Update previous position
                     self.previous_positions[player_id] = (current_position, frame_number)
@@ -122,3 +137,6 @@ class SpeedEstimator:
         """
         self.previous_positions = {}
         self.speed_history = {}
+
+    def extract_players_data(self):
+        return self.all_speed_history, self.all_distance_history

@@ -21,6 +21,12 @@ def _convert_frames_to_video(frame_dir: str, output_video: str, fps: float, fram
         fps (float): Frames per second for the output video.
         frame_size (Tuple[int, int]): Size of the frames as (width, height).
     """
+    if os.path.exists(output_video):
+        os.remove(output_video)
+        print(f"{output_video} has been deleted.")
+    else:
+        print(f"{output_video} does not exist.")
+
     fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
     out = cv2.VideoWriter(output_video, fourcc, fps, frame_size)
     
@@ -41,7 +47,7 @@ def _convert_frames_to_video(frame_dir: str, output_video: str, fps: float, fram
 
 
 def process_video(processor = None, video_source: str = 0, output_video: Optional[str] = "output.mp4", 
-                  batch_size: int = 30, skip_seconds: int = 0) -> None:
+                  batch_size: int = 30, skip_seconds: int = 0, name: str = "") -> None:
     """
     Process a video file or stream, capturing, processing, and displaying frames.
 
@@ -230,7 +236,7 @@ def process_video(processor = None, video_source: str = 0, output_video: Optiona
     os._exit(0)  # Force exit the program
 
 def process_images_as_video(processor = None, image_dir: str = 0, output_video: Optional[str] = "output.mp4", 
-                  batch_size: int = 30, skip_seconds: int = 0, fps: int = 30) -> None:
+                  batch_size: int = 30, skip_seconds: int = 0, fps: int = 30, name: str = "") -> None:
     """
     Process a video file or stream, capturing, processing, and displaying frames.
 
@@ -416,6 +422,6 @@ def process_images_as_video(processor = None, image_dir: str = 0, output_video: 
         finally:
             cv2.destroyAllWindows()
 
-    processor.export()
+    processor.export(name=name)
     print("Video processing completed. Program will now exit.")
-    os._exit(0)  # Force exit the program
+    # os._exit(0)  # Force exit the program

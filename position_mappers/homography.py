@@ -32,6 +32,19 @@ class HomographySmoother:
 
         return self.smoothed_H
 
+    def adaptive_smooth(self, current_H: np.ndarray) -> np.ndarray:
+        """
+        Smooths the homography using adaptive exponential smoothing
+        Args:
+            current_H (np.ndarray): The current homography matrix of shape (3, 3).
+
+        Returns:
+            np.ndarray: The smoothed homography matrix of shape (3, 3).
+
+        
+        """
+        pass
+
 def get_homography(keypoints: dict, top_down_keypoints: np.ndarray) -> np.ndarray:
     """
     Compute the homography matrix between detected keypoints and top-down keypoints.
@@ -64,7 +77,12 @@ def get_homography(keypoints: dict, top_down_keypoints: np.ndarray) -> np.ndarra
         """
         src_points = np.array(src_points, dtype=np.float32)
         dst_points = np.array(dst_points, dtype=np.float32)
-        h, _ = cv2.findHomography(src_points, dst_points)
+        h, _ = cv2.findHomography(
+            src_points,
+            dst_points,
+            # method=cv2.RANSAC,
+            # ransacReprojThreshold=10.0
+            )
 
         return h.astype(np.float32)
 
