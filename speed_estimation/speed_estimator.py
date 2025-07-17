@@ -36,7 +36,10 @@ class SpeedEstimator:
         self.scale_y = real_field_width / field_height
         
         # Maximum realistic speed (km/h)
-        self.max_speed = 40.0
+        self.max_speed = 36.0
+
+        # Maximum realistic distance (m)
+        self.max_distance = 10.0
 
     def calculate_speed(self, tracks: Dict[str, Any], frame_number: int, fps: float) -> Dict[str, Any]:
         """
@@ -60,6 +63,7 @@ class SpeedEstimator:
                         
                         # Calculate distance in meters
                         distance = self._calculate_distance(prev_position, current_position)
+                        distance = min(distance, self.max_distance)
                         
                         # Calculate time difference in seconds
                         time_diff = (frame_number - prev_frame) / fps

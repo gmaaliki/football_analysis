@@ -56,8 +56,8 @@ class ObjectTracker():
         resized_frames = [self._preprocess_frame(frame) for frame in frames]
 
         # Use YOLOv8's predict method to handle batch inference
-        player_detections = self.player_model.predict(resized_frames, conf=self.conf)
-        ball_detections = self.ball_model.predict(resized_frames, conf=self.ball_conf)
+        player_detections = self.player_model.predict(resized_frames, conf=self.conf, verbose=False)
+        ball_detections = self.ball_model.predict(resized_frames, conf=self.ball_conf, verbose=False)
 
         # TODO: Gabungin model 3+1 nya, append detections.boxesnya, classnya disesuaikan sesuai dengan model 4, tambahin waktu di speednya, adjust names nya
         detections = copy.deepcopy(player_detections)
@@ -95,15 +95,17 @@ class ObjectTracker():
                 ball_conf.unsqueeze(1), 
                 ball_cls.unsqueeze(1)
             ], dim=1)
-            # # Only take 1 ball detection that is the highest
+
+            # Only take 1 ball detection that is the highest
             # if ball_new_boxes.shape[0] > 0:
             #     sorted_ball_boxes = ball_new_boxes[ball_new_boxes[:, 4].argsort(descending=True)]
             #     top_ball_box = sorted_ball_boxes[0].unsqueeze(0)  # shape [1, 6]
             # else:
             #     top_ball_box = torch.empty((0, 6), device=ball_new_boxes.device)
+            top_ball_box = torch.empty((0, 6), device=ball_new_boxes.device)
 
 
-            new_data = torch.cat([player_new_boxes, ball_new_boxes], dim=0)
+            new_data = torch.cat([player_new_boxes, top_ball_box], dim=0)
             sorted_indices = new_data[:, 4].argsort(descending=True) # sort detections based on it's confidence score
             new_data = new_data[sorted_indices]
             orig_shape = detections[i].orig_shape
@@ -171,6 +173,46 @@ class ObjectTracker():
 
                         line = f"{frame_num},{track_id},{x1:.2f},{y1:.2f},{width:.2f},{height:.2f},{conf:.2f},{class_id},-1,-1\n"
                         f.write(line)
+
+    # def import_from_mot(self, file_path: str = "mot_results.txt"):
+    #     """
+    #     Import tracking results from a MOT Challenge format file and reconstruct self.all_tracks.
+        
+    #     Args:
+    #         file_path (str): Path to the MOT format results file.
+    #     """
+    #     self.all_tracks = {}  # Clear existing data
+
+    #     with open(file_path, 'r') as f:
+    #         for line in f:
+    #             parts = line.strip().split(',')
+    #             if len(parts) < 9:
+    #                 continue  # Skip malformed lines
+
+    #             frame_num = int(parts[0])
+    #             track_id = int(parts[1])
+    #             x1 = float(parts[2])
+    #             y1 = float(parts[3])
+    #             width = float(parts[4])
+    #             height = float(parts[5])
+    #             conf = float(parts[6])
+    #             class_id = int(parts[7])
+
+    #             class_name = self.classes[class_id]
+    #             x2 = x1 + width
+    #             y2 = y1 + height
+    #             frame_idx = frame_num - 1  # Convert from 1-indexed to 0-indexed
+
+    #             # Initialize nested dictionaries as needed
+    #             if frame_idx not in self.all_tracks:
+    #                 self.all_tracks[frame_idx] = {}
+    #             if class_name not in self.all_tracks[frame_idx]:
+    #                 self.all_tracks[frame_idx][class_name] = {}
+
+    #             self.all_tracks[frame_idx][class_name][track_id] = {
+    #                 "bbox": [x1, y1, x2, y2],
+    #                 "conf": conf
+    #             }
 
     
     def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:

@@ -75,6 +75,7 @@ def get_homography(keypoints: dict, top_down_keypoints: np.ndarray) -> np.ndarra
         Returns:
             np.ndarray: The computed homography matrix of shape (3, 3).
         """
+        # print(f"src_points: {src_points}")
         src_points = np.array(src_points, dtype=np.float32)
         dst_points = np.array(dst_points, dtype=np.float32)
         h, _ = cv2.findHomography(

@@ -46,7 +46,8 @@ class ObjectAnnotator(AbstractAnnotator):
 
                 # Annotate based on object type
                 if track == 'ball':
-                    frame = self.draw_triangle(frame, item['bbox'], self.ball_annotation_color)
+                    # frame = self.draw_triangle(frame, item['bbox'], self.ball_annotation_color)
+                    pass
                 elif track == 'referee':
                     frame = self.draw_ellipse(frame, item['bbox'], self.referee_annotation_color, track_id, -1, track)
                 else:

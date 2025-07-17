@@ -39,15 +39,17 @@ class ObjectPositionMapper(AbstractMapper):
             dict: The detection data with projected positions added.
         """
         detection = detection.copy()
-        
+
         keypoints = detection['keypoints']
         object_data = detection['object']
 
-        if not keypoints or not object_data:
+        if not keypoints or len(keypoints) < 4 or not object_data:
             return detection
 
         H = get_homography(keypoints, self.top_down_keypoints)
         smoothed_H = self.homography_smoother.smooth(H)  # Apply smoothing to the homography matrix
+        # print(f"smoothed_H: {smoothed_H}")
+        # raise Exception("hahahah")
 
         # TODO: cek track_info['projection']
         for _, object_info in object_data.items():

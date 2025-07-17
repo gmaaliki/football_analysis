@@ -2,15 +2,14 @@ from .abstract_annotator import AbstractAnnotator
 from utils import is_color_dark, rgb_bgr_converter
 
 import cv2
+import os
 import numpy as np
-from scipy.spatial import Voronoi
 from typing import Dict
 
 
 class ProjectionAnnotator(AbstractAnnotator):
     """
-    Class to annotate projections on a projection image, including Voronoi regions for players (and goalkeepers), 
-    and different markers for ball, players, referees, and goalkeepers.
+    Class to annotate projections on a projection image and different markers for ball, players, referees, and goalkeepers.
     """
 
     def _draw_outline(self, frame: np.ndarray, pos: tuple, shape: str = 'circle', size: int = 10, is_dark: bool = True) -> None:
@@ -46,9 +45,9 @@ class ProjectionAnnotator(AbstractAnnotator):
             cv2.line(frame, (int(pos[0]), int(pos[1]) - size), (int(pos[0]), int(pos[1]) + size), color=outline_color, thickness=10)
 
 
-    def annotate(self, frame: np.ndarray, tracks: Dict) -> np.ndarray:
+    def annotate(self, frame: np.ndarray, tracks: Dict, frame_num: int, save_tracks_dir: str) -> np.ndarray:
         """
-        Annotates an image with projected player, goalkeeper, referee, and ball positions, along with Voronoi regions.
+        Annotates an image with projected player, goalkeeper, referee, and ball positions.
         
         Parameters:
             frame (np.ndarray): The image on which to draw the annotations.
@@ -58,11 +57,12 @@ class ProjectionAnnotator(AbstractAnnotator):
             np.ndarray: The annotated frame.
         """
         frame = frame.copy()
-        frame = self._draw_voronoi(frame, tracks)
 
         for class_name, track_data in tracks.items():
             if class_name != 'ball':  # Ball is drawn later
                 for track_id, track_info in track_data.items():
+                    if 'projection' not in track_info:
+                        continue
                     proj_pos = track_info['projection']
                     color = track_info.get('club_color', (255, 255, 255))
                     color = rgb_bgr_converter(color)
@@ -83,66 +83,9 @@ class ProjectionAnnotator(AbstractAnnotator):
 
                     elif class_name == 'referee':
                         self._draw_outline(frame, proj_pos, shape='dashed_circle', is_dark=is_dark_color)
-
-        if 'ball' in tracks:
-            for track_id, track_info in tracks['ball'].items():
-                proj_pos = track_info['projection']
-                self._draw_outline(frame, proj_pos, shape='plus', is_dark=is_color_dark((0, 255, 255)))
-                color = (0, 255, 255)
-                cv2.line(frame, (int(proj_pos[0]) - 10, int(proj_pos[1])), (int(proj_pos[0]) + 10, int(proj_pos[1])), color=color, thickness=6)
-                cv2.line(frame, (int(proj_pos[0]), int(proj_pos[1]) - 10), (int(proj_pos[0]), int(proj_pos[1]) + 10), color=color, thickness=6)
+        projection_output_dir = os.path.join(save_tracks_dir, "field_projection")
+        os.makedirs(projection_output_dir, exist_ok=True)
+        cv2.imwrite(f"{projection_output_dir}/{frame_num}.jpg", frame)
 
         return frame
-
-    def _draw_voronoi(self, image: np.ndarray, tracks: Dict) -> np.ndarray:
-        """
-        Draws Voronoi regions for players and goalkeepers on the frame.
-        
-        Parameters:
-            image (np.ndarray): The image on which to draw the Voronoi regions.
-            tracks (Dict): A dictionary containing tracking information for 'player' and 'goalkeeper'.
-
-        Returns:
-            np.ndarray: The frame with Voronoi regions drawn.
-        """
-        height, width = image.shape[:2]
-        overlay = image.copy()
-        points, player_colors = [], []
-
-        for class_name in ['player', 'goalkeeper']:
-            track_data = tracks.get(class_name, {})
-            for track_id, track_info in track_data.items():
-                x, y = track_info['projection'][:2]
-                points.append([x, y])
-                player_colors.append(rgb_bgr_converter(track_info['club_color']))
-
-        boundary_margin = 1000
-        boundary_points = [
-            [-boundary_margin, -boundary_margin], [width // 2, -boundary_margin],
-            [width + boundary_margin, -boundary_margin], [-boundary_margin, height // 2],
-            [width + boundary_margin, height // 2], [-boundary_margin, height + boundary_margin],
-            [width // 2, height + boundary_margin], [width + boundary_margin, height + boundary_margin]
-        ]
-        boundary_color = (128, 128, 128)
-        points.extend(boundary_points)
-        player_colors.extend([boundary_color] * len(boundary_points))
-
-        if len(points) > 2:
-            points = np.array(points)
-            vor = Voronoi(points)
-            for region_index, region in enumerate(vor.point_region):
-                if -1 not in vor.regions[region] and len(vor.regions[region]) > 0:
-                    polygon = [vor.vertices[i] for i in vor.regions[region]]
-                    polygon = np.array(polygon, np.int32).reshape((-1, 1, 2))
-                    color = player_colors[region_index] if region_index < len(player_colors) else boundary_color
-                    cv2.polylines(overlay, [polygon], isClosed=True, color=color, thickness=2)
-                    cv2.fillPoly(overlay, [polygon], color=color)
-
-        alpha = 0.6
-        cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
-        
-        return image
-
-
-
     

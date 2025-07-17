@@ -41,8 +41,43 @@ class KeypointsTracker(AbstractTracker):
         contrast_adjusted_frames = [self._preprocess_frame(frame) for frame in frames]
 
         # Use YOLOv8's batch predict method
-        detections = self.model.predict(contrast_adjusted_frames, conf=self.conf)
-        return detections
+        detections = self.model.predict(contrast_adjusted_frames, conf=self.conf, verbose=False)
+
+        top_detections = []
+
+        for result in detections:
+            # Default values
+            best_conf = -1
+            best_idx = None
+
+            if result.boxes is not None and len(result.boxes.conf) > 0:
+                for i, conf in enumerate(result.boxes.conf):
+                    if conf > best_conf:
+                        best_conf = conf
+                        best_idx = i
+
+            if best_idx is not None:
+                # Create single-detection result
+                top_result = Results(
+                    orig_img=result.orig_img,
+                    path=result.path,
+                    names=result.names
+                )
+                top_result.boxes = result.boxes[best_idx:best_idx + 1]
+                top_result.keypoints = result.keypoints[best_idx:best_idx + 1] if result.keypoints is not None else None
+                top_result.probs = result.probs
+                top_result.speed = result.speed
+
+                top_detections.append(top_result)
+            else:
+                # Optionally append empty result if no detections
+                top_detections.append(Results(
+                    orig_img=result.orig_img,
+                    path=result.path,
+                    names=result.names
+                    ))
+
+        return top_detections
 
     def track(self, detection: Results) -> dict:
         """
@@ -54,11 +89,11 @@ class KeypointsTracker(AbstractTracker):
         Returns:
             dict: Dictionary containing tracks of the frame.
         """
-        detection = sv.KeyPoints.from_ultralytics(detection)
-        
         # Check 
-        if not detection:
+        if detection.boxes is None:
             return {}
+
+        detection = sv.KeyPoints.from_ultralytics(detection)
 
         # Extract xy coordinates, confidence, and the number of keypoints
         xy = detection.xy[0]  # Shape: (32, 2), assuming there are 32 keypoints

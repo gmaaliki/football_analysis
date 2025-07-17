@@ -1,20 +1,23 @@
-from utils import process_video, process_images_as_video
+from utils import process_images_as_video
 from tracking import ObjectTracker, KeypointsTracker
 from club_assignment import ClubAssigner, Club
-from ball_to_player_assignment import BallToPlayerAssigner
 from annotation import FootballVideoProcessor
 from test_clips import test_clip_list
+from player_info import CalculatePlayerStats
 import os
-
+import time
 import numpy as np
+import cv2
 
 def main():
     """
     Main function to demonstrate how to use the football analysis project.
     This script will walk you through loading models, assigning clubs, tracking objects and players, and processing the video.
     """
+    cv2.setUseOptimized(True)
 
     for clip in test_clip_list:
+        start_time = time.time()
 
         image_dir = f'input_videos/test/{clip}/img1'
         output_dir = f'output_videos/test/{clip}'
@@ -37,31 +40,36 @@ def main():
         # Adjust the 'conf' and 'kp_conf' values as per your requirements.
         kp_tracker = KeypointsTracker(
             model_path='models/weights/keypoints-detection.pt', # Keypoints Model Weights Path
-            conf=.3,                                            # Field Detection confidence threshold
+            conf=.5,                                            # Field Detection confidence threshold
             kp_conf=.5,                                         # Keypoint confidence threshold
-            det_size=640,                                       # Original size the model is trained on
+            det_size=1280,                                       # Original size the model is trained on
         )
         
         # 3. Assign clubs to players based on their uniforms' colors
         # Create 'Club' objects - Needed for Player Club Assignment
         # Replace the RGB values with the actual colors of the clubs.
         club1 = Club('Club1',         # club name 
-                    (232, 247, 248), # player jersey color
-                    (6, 25, 21)      # goalkeeper jersey color
+                    # (232, 247, 248), # player jersey color (putih)
+                    # (200, 202, 231), # player jersey (putih tua)
+                    (243, 248, 247), # player jersey color (putih)
+                    # (31, 40, 37) # goalkeeper jersey color black
+                    # (93, 133, 181) # goalkeeper jersey (biru)
+                    (61, 100, 39) # goalkeeper jersey (hijau)
                     )
         club2 = Club('Club2',         # club name 
-                    (172, 251, 145), # player jersey color
-                    (239, 156, 132)  # goalkeeper jersey color
+                    # (116, 0, 14), # player jersey color (merah)
+                    # (72, 22, 36), # player jersey (merah tua)
+                    (134, 48, 51), # player jersey (merah)
+                    # (204, 203, 208)  # goalkeeper jersey color (abu-abu)
+                    # (148, 76, 25) # goalkeeper (orange tua)
+                    (240, 246, 44) # goalkeeper jersey (kuning)
                     )   
 
         # Create a ClubAssigner Object to automatically assign players and goalkeepers 
         # to their respective clubs based on jersey colors.
         club_assigner = ClubAssigner(club1, club2)
 
-        # 4. Initialize the BallToPlayerAssigner object
-        ball_player_assigner = BallToPlayerAssigner(club1, club2, fps=25)
-
-        # 5. Define the keypoints for a top-down view of the football field (from left to right and top to bottom)
+        # 4. Define the keypoints for a top-down view of the football field (from left to right and top to bottom)
         # These are used to transform the perspective of the field.
         top_down_keypoints = np.array([
             [0, 0], [0, 57], [0, 122], [0, 229], [0, 293], [0, 351],             # 0-5 (left goal line)
@@ -76,12 +84,11 @@ def main():
             [210, 176], [317, 176]                                               # 30-31 (center circle leftmost and rightmost points)
         ])
 
-        # 6. Initialize the video processor
+        # 5. Initialize the video processor
         # This processor will handle every task needed for analysis.
         processor = FootballVideoProcessor(obj_tracker,                                   # Created ObjectTracker object
                                         kp_tracker,                                    # Created KeypointsTracker object
                                         club_assigner,                                 # Created ClubAssigner object
-                                        ball_player_assigner,                          # Created BallToPlayerAssigner object
                                         top_down_keypoints,                            # Created Top-Down keypoints numpy array
                                         field_img_path='input_videos/field_2d_v2.png', # Top-Down field image path
                                         save_tracks_dir=output_dir,               # Directory to save tracking information.
@@ -89,25 +96,7 @@ def main():
                                                                                         #the output video.
                                         )
         
-        # 7. Process the video
-        # Specify the input video path and the output video path. 
-        # The batch_size determines how many frames are processed in one go.
-        # process_video(processor,                                # Created FootballVideoProcessor object
-        #               video_source='input_videos/video.mp4', # Video source (in this case video file path)
-        #               output_video='output_videos/result.mp4',    # Output video path (Optional)
-        #               batch_size=10                             # Number of frames to process at once
-        #               )
-
-        # 7.1 Process images as video
-        # Processing multuple image sequence as video
-        # Ensure the image file name is alphabetically ordered according to the video sequence
-        # process_images_as_video(processor,
-        #                         image_dir='input_videos/images',
-        #                         output_video='output_videos/result.mp4',
-        #                         batch_size=10,
-        #                         fps=25,
-        #                         )
-
+        # 6. Process the video
         process_images_as_video(processor,
                                 image_dir=image_dir,
                                 output_video=f'{output_dir}/result.mp4',
@@ -115,7 +104,13 @@ def main():
                                 fps=25,
                                 name=clip,
                                 )
+        
+        end_time = time.time()
+        print(f"Execution time: {end_time - start_time:.2f} seconds")
 
+        player_stat = CalculatePlayerStats(output_dir)
+        player_stat.distance_stat()
+        player_stat.speed_stat()
 
     os._exit(0)  # Force exit the program
 

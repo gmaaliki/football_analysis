@@ -43,10 +43,10 @@ test_clip_list = [
     # 'SNMOT-192', 
     # 'SNMOT-193', 
     'SNMOT-194', 
-    # 'SNMOT-195', 
-    # 'SNMOT-196', 
-    # 'SNMOT-197', 
-    # 'SNMOT-198', 
-    # 'SNMOT-199', 
-    # 'SNMOT-200'
+    'SNMOT-195', 
+    'SNMOT-196', 
+    'SNMOT-197', 
+    'SNMOT-198', 
+    'SNMOT-199', 
+    'SNMOT-200'
 ]
