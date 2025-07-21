@@ -12,3 +12,7 @@ models/weights
 config.py
 old-object_tracker.py
 *_tracks.json
+input_videos/example
+input_videos/test
+input_videos/images
+output_videos
